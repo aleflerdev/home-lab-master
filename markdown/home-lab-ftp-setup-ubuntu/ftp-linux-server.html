@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/default.min.css">
+    <title>How to Set Up FTP Server on Ubuntu</title>
+</head>
+
+<body>
+    <h1>How to Set Up FTP Server on Ubuntu</h1>
+<p>In this article, you are going to learn how to set up an FTP server on an Ubuntu VPS. We’ll be using a <a href='https://security.appspot.com/vsftpd.html'>vsftpd</a> server, which is widely regarded as the fastest and most secure FTP server for UNIX-like systems.</p>
+<h2>What is FTP?</h2>
+<p>FTP, or <a href='https://www.hostinger.com/tutorials/what-is-ftp'>File Transfer Protocol</a>, is a means to share files between computers over an internet connection using the TCP/IP protocol. It also makes use of a client-server  framework and SSL/TLS security to ensure secure and reliable data  transfer.</p>
+<p>This is somewhat similar to <a href='https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol'>HTTP</a> (HypertText Transfer Protocol) or <a href='https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol'>SMTP</a> (Simple Mail Transfer Protocol). The difference is that FTP is  responsible for transporting files through the internet while HTTP and  SMTP handle the transfer of web pages and emails, respectively.</p>
+<p>Before we begin, keep in mind that we will guide you through configuring an FTP server on <a href='https://ubuntu.com/'>Ubuntu</a> 18.04. Therefore, you need to make sure your VPS is running on that particular OS.</p>
+<h2>How to Set Up an FTP Server on Ubuntu</h2>
+<p>This tutorial requires you to know <a href='https://www.hostinger.com/tutorials/how-to-connect-to-your-account-using-putty'>how to connect to a server through SSH</a>. </p>
+<h3>Step 1 – Installing vsftpd</h3>
+<ol start='' >
+<li><p>First of all, we’ll have to get our package updates before we proceed with the </p>
+<p>vsftpd</p>
+<p> installation. To begin, run the following command:</p>
+<pre><code class="code">sudo apt-get update
+</code></pre>
+<p>Wait for all the processes to complete, and you will see a confirmation as soon as the update finishes.</p>
+</li>
+<li><p>Once it’s done, install the </p>
+<p>vsftpd</p>
+<p> daemon using the command below:</p>
+<pre><code class="code">sudo apt-get install vsftpd
+</code></pre>
+<p>You will be prompted with a confirmation message, which will require you to type <strong>Y</strong> and hit <strong>Enter</strong> to continue with the installation.</p>
+</li>
+<li><p>After the installation is completed, you should back up the original file so you can start with a blank configuration file:</p>
+<pre><code class=".code">sudo cp /etc/vsftpd.conf /etc/vsftpd.conf.original
+</code></pre>
+<p>Now we are ready to configure the firewall.</p>
+</li>
+</ol>
+<h3>Step 2 – Allowing FTP Traffic from the Firewall</h3>
+<ol start='' >
+<li><p>To allow the Ubuntu FTP server to communicate via the internet, it needs  to make its way through the firewall. But first, let’s just see whether  the firewall is already enabled on your machine or not. Simply run this  command to verify the status:</p>
+<pre><code class="code">sudo ufw status
+</code></pre>
+<p>If you see the following message:</p>
+<pre><code class="code">ufw: command not found
+</code></pre>
+<p>It means that the firewall is not installed. You can install and enable it by typing:</p>
+<pre><code class="code">sudo apt-get install ufw
+sudo ufw enable
+</code></pre>
+</li>
+<li><p>If it’s already active, you still need to  make sure FTP traffic is allowed. To do that, execute the following  commands one by one:</p>
+<pre><code class="code">sudo ufw allow OpenSSH
+sudo ufw allow 20/tcp
+sudo ufw allow 21/tcp
+sudo ufw allow 990/tcp
+sudo ufw allow 40000:50000/tcp
+</code></pre>
+<p>This series of commands will open up several ports:</p>
+<ul>
+<li><strong>OpenSSH</strong> is required if you still wish to access your server via SSH. Sometimes, this option is enabled by default.</li>
+<li>ports <strong>20</strong> and <strong>21</strong> for the FTP traffic.</li>
+<li>ports <strong>40000:50000</strong> will be reserved for the range of passive ports that will eventually be set in the configuration file.</li>
+<li>port <strong>990</strong> will be used when TLS is enabled.</li>
+
+</ul>
+</li>
+<li><p>Now let’s look at the status again:</p>
+<pre><code class="code">sudo ufw status
+</code></pre>
+<p>The output should look something like this:</p>
+<pre><code class="code">Status: active
+To                         Action From
+--                              ------ ----
+OpenSSH                    ALLOW Anywhere
+990/tcp                    ALLOW Anywhere
+20/tcp                     ALLOW Anywhere
+21/tcp                     ALLOW Anywhere
+40000:50000/tcp            ALLOW Anywhere
+OpenSSH (v6)               ALLOW Anywhere (v6)
+20/tcp (v6)                ALLOW Anywhere (v6)
+21/tcp (v6)                ALLOW Anywhere (v6)
+990/tcp (v6)               ALLOW Anywhere (v6)
+40000:50000/tcp (v6)       ALLOW Anywhere (v6)
+</code></pre>
+</li>
+
+</ol>
+<h3>Step 3 – Creating the User Directory</h3>
+<ol start='' >
+<li><p>Once the firewall is set up, we must create the user who is going to use the FTP access. This is how to do it:</p>
+<pre><code class="code">sudo adduser hostinger
+</code></pre>
+<p>Remember to change the username according to your own preference.</p>
+</li>
+<li><p>Then, enter a password for the user and fill in all the required details.
+Ideally, FTP should be restricted to one specific directory for security purposes. That is why <strong>vsftpd</strong> uses <strong>chroot jails</strong>, which limits a local user to their home directory by default.
+However, it is possible that because of <strong>vsftpd</strong> security, a user might not be able to write to that directory. To fix  this, we don’t have to remove write privileges from the home folder.  Instead, we will make an ftp directory which acts as <strong>chroot</strong>. It contains a writable directory that will be responsible for holding the required files.</p>
+</li>
+<li><p>Use the following command to create the FTP folder:</p>
+<pre><code class="code">sudo mkdir /home/hostinger/ftp
+</code></pre>
+<p>Then, set the ownership using:</p>
+<pre><code class="code">sudo chown nobody:nogroup /home/hostinger/ftp
+</code></pre>
+<p>Finally, remove the write permission:</p>
+<pre><code class="code">sudo chmod a-w /home/hostinger/ftp
+</code></pre>
+<p>Now, use the following command to verify the permissions:</p>
+<pre><code class="code">sudo ls -la /home/hostinger/ftp
+</code></pre>
+<p>The output should look something like:</p>
+<pre><code class="code">total 8
+dr-xr-xr-x 2 nobody nogroup 4096 Oct 8 11:32 .
+drwxr-xr-x 3 hostinger   hostinger 4096 Oct 8 11:32 ..
+</code></pre>
+</li>
+<li><p>Next, we will create the file-holding directory and assign ownership:</p>
+<pre><code class="code">sudo mkdir /home/hostinger/ftp/files
+sudo chown hostinger:hostinger /home/hostinger/ftp/files
+</code></pre>
+<p>Finally, add a test file to the directory which will be used when we test everything later on:</p>
+<pre><code class="code">echo &quot;vsftpd sample file&quot; | sudo tee /home/hostinger/ftp/files/sample.txt
+</code></pre>
+</li>
+
+</ol>
+<h3>Step 4 – Configuring vsftpd</h3>
+<p>The next step is to configure vsftpd and our FTP access. In this example,  we will allow a single user to connect using a local shell account. The  two key configurations required for this are already set in the  configuration (<strong>vsftpd.conf</strong>) file.</p>
+<ol start='' >
+<li><p>To begin, </p>
+<p>use the nano command</p>
+<p> to open </p>
+<p>vsftpd</p>
+<p> configuration file.</p>
+<pre><code class="code">sudo nano /etc/vsftpd.conf
+</code></pre>
+<p>Verify that the content has similar settings to this:</p>
+<pre><code class="code">. . .
+# Allow anonymous FTP? (Disabled by default).
+anonymous_enable=NO
+#
+# Uncomment this to allow local users to log in.
+local_enable=YES
+. . .
+</code></pre>
+<p>In the same file, we will remove <strong>#</strong> (uncomment) and make sure we enable the <strong>write_enable</strong>.</p>
+<pre><code class="code">. . .
+write_enable=YES
+. . .
+</code></pre>
+</li>
+<li><p>You also need to uncomment </p>
+<p>chroot</p>
+<p> to ensure that the FTP user only accesses files within the allowed directory. Change the </p>
+<p>NO</p>
+<p> value to </p>
+<p>YES</p>
+<p>, as well. Keep in mind that there are two lines like this, and you have to uncomment both of them.</p>
+<pre><code class="code">. . .
+chroot_local_user=YES
+. . .
+</code></pre>
+</li>
+<li><p>There are a few new values that you should also add to the bottom of the file. The first one is </p>
+<p>user_sub_token</p>
+<p> in the </p>
+<p>local_root directory path</p>
+<p>. It will allow the configuration to work with the current user or any other users that are subsequently added:</p>
+<pre><code class="code">user_sub_token=$USER
+
+local_root=/home/$USER/ftp
+</code></pre>
+</li>
+<li><p>To ensure that a substantial amount of connections are available, we will limit the number of ports the configuration file:</p>
+<pre><code class="code">pasv_min_port=40000
+pasv_max_port=50000
+</code></pre>
+</li>
+<li><p>In this tutorial, we intend to allow  access on a case by case basis. Therefore, we’ll set the configuration  to grant access only to users that you have explicitly added to the  list:</p>
+<pre><code class="code">userlist_enable=YES
+userlist_file=/etc/vsftpd.userlist
+userlist_deny=NO
+</code></pre>
+<p>When you set <strong>userlist_deny flag</strong> to <strong>NO</strong>, only specified users will be allowed access. Once done, click <strong>CTRL+X</strong> followed by <strong>Y</strong> to save it, then <strong>Enter</strong> to confirm the file changes.</p>
+</li>
+<li><p>Lastly, we will create a user list and add a user to the file:</p>
+<pre><code class="code">echo &quot;hostinger&quot; | sudo tee -a /etc/vsftpd.userlist
+</code></pre>
+<p>Verify that the user is indeed active by running the following command:</p>
+<pre><code class="code">cat /etc/vsftpd.userlist
+</code></pre>
+<p>The output should be “hostinger” as shown in this screenshot:
+ <img src="https://www.hostinger.com/tutorials/wp-content/uploads/sites/2/2018/01/user-list-vsftpd.png" referrerpolicy="no-referrer" alt="Verifying user on userlist on a VPS"></p>
+</li>
+<li><p>Restart the daemon using the following command to load the configuration changes:</p>
+<pre><code class="code">sudo systemctl restart vsftpd
+</code></pre>
+</li>
+
+</ol>
+<h3>Step 5 – Making FTP Secure</h3>
+<ol start='' >
+<li><p>By default, FTP doesn’t encrypt data, so we will be using </p>
+<p>SSL/TLS </p>
+<p>certificate to secure data transfer. The first step is we need to create the SSL certificate for the Ubuntu FTP server.</p>
+<pre><code class="code">sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/vsftpd.pem -out /etc/ssl/private/vsftpd.pem
+</code></pre>
+<p>The <strong>–days</strong> flag makes the certificate valid for a year and we have included a <strong>2048-bit</strong> private <strong>RSA</strong> key in the same command.</p>
+</li>
+<li><p>Once prompted, enter the corresponding personal details in the field provided.</p>
+</li>
+<li><p>After you finish creating the certificate, open the configuration file again:</p>
+<pre><code class="code">sudo nano /etc/vsftpd.conf
+</code></pre>
+<p>The end of the file should contain two lines that start with <strong>rsa</strong>.</p>
+<pre><code class="code"># rsa_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+# rsa_private_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+</code></pre>
+<p>Now, we will point the configuration file to the certificate that we just  created. Add the following directories right below the previous lines:</p>
+<pre><code class="code">rsa_cert_file=/etc/ssl/private/vsftpd.pem
+rsa_private_key_file=/etc/ssl/private/vsftpd.pem
+</code></pre>
+</li>
+<li><p>Next, we will enable SSL and ensure that only clients who have an active SSL can contact us. Simply enter this line:</p>
+<pre><code class="code">ssl_enable=YES
+</code></pre>
+<p>Then, add the following lines to ban any anonymous connections over SSL:</p>
+<pre><code class="code">allow_anon_ssl=NO
+force_local_data_ssl=YES
+force_local_logins_ssl=YES
+</code></pre>
+<p>Configure the server to use TLS using:</p>
+<pre><code class="code">ssl_tlsv1=YES
+ssl_sslv2=NO
+ssl_sslv3=NO
+</code></pre>
+</li>
+<li><p>Now we will change two more options. Firstly, disable </p>
+<p>SSL reuse</p>
+<p> to prevent FTP clients from breaking down. Secondly, we will use high  encryption cipher suites, which make sure that key lengths are either  equal to or greater than 128 bits.</p>
+<pre><code class="code">require_ssl_reuse=NO
+ssl_ciphers=HIGH
+</code></pre>
+<p>Save the file again by pressing <strong>CTRL+X</strong> followed by <strong>Y</strong>, then hit <strong>Enter</strong>.</p>
+</li>
+<li><p>Let’s restart </p>
+<p>vsftpd</p>
+<p> once again to apply the new configurations:</p>
+<pre><code class="code">sudo systemctl restart vsftpd
+</code></pre>
+</li>
+
+</ol>
+<p>Great work! You have now configured the FTP server on your Ubuntu VPS to work with SSL/TLS protocol.</p>
+<h3>Step 6 – Testing Connection with FileZilla</h3>
+<p>Nowadays, most FTP clients support TLS encryption configurations. It’s a great  way to test whether your Ubuntu FTP server is working properly. To test  out the connection, we will be using a <a href='https://www.hostinger.com/tutorials/ftp/filezilla-ftp-configuration'>FileZilla FTP Client</a>.</p>
+<ol start='' >
+<li>To start, launch <strong>FileZilla</strong> and click on the <strong>Site Manager</strong> icon. Then, click the <strong>New Site</strong> button in the prompted window to enter the Ubuntu FTP server details.
+<img src="https://www.hostinger.com/tutorials/wp-content/uploads/sites/2/2018/01/filezilla-1024x779.png" referrerpolicy="no-referrer" alt="FileZilla quick connect window"></li>
+<li>Fill in all the required columns with your newly created Ubuntu FTP server  information. Since we configured it to use TLS, we may also choose the <strong>Use explicit FTP over TLS</strong> option. The final configuration should look like this:
+<img src="https://www.hostinger.com/tutorials/wp-content/uploads/sites/2/2018/01/connecting-ftp-filezilla.png" referrerpolicy="no-referrer" alt="FileZilla connection settings"></li>
+<li>Once ready, click <strong>Connect,</strong> and a screen asking to enter the FTP user’s password will appear. After that, hit <strong>OK</strong>.</li>
+<li>Finally, you will need to verify the SSL certificate of your FTP server on  Ubuntu VPS. After confirming, the root directory with the test file  should now appear on your screen.
+<img src="https://www.hostinger.com/tutorials/wp-content/uploads/sites/2/2018/01/ubuntu-ftp-server-connection-1024x781.png" referrerpolicy="no-referrer" alt="Test file on Ubuntu FileZilla client"></li>
+
+</ol>
+<p>That’s all! Now, you can perform various files transfers from your computer to the Ubuntu FTP server and vice versa.</p>
+<h2>Conclusion</h2>
+<p>Having an Ubuntu FTP server makes it easy for you to share files between your  Ubuntu VPS/server and computer. It is a secure and reliable method of  data transfer, thanks to SSL/TLS security and the TCP/IP protocol.</p>
+<p>In this tutorial, you have learned how to set up an FTP server on Ubuntu 18.04 using <a href='https://security.appspot.com/vsftpd.html'>vsftpd</a>. There are five steps that you should follow. Let’s take a look at them once again.</p>
+<ol start='' >
+<li>Install <strong>vsftpd</strong> on your Ubuntu server and back up the original configuration file.</li>
+<li>Allow FTP connections through the firewall.</li>
+<li>Create a user directory that can be accessed only by specified users.</li>
+<li>Configure <strong>vsftpd</strong>.</li>
+<li>Secure the FTP server.</li>
+<li>Test your FTP connection with FileZilla.</li>
+
+</ol>
+<p>Good luck, and be sure to check our other VPS tutorials!</p>
+
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js"></script>
+
+</body>
+</html>

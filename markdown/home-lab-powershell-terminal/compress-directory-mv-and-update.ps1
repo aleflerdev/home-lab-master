@@ -1,0 +1,1 @@
+Compress-Archive -Path \E:\homelab-project -DestinationPath D:\Home-Lab-Backup.zip -Update

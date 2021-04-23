@@ -1,0 +1,1 @@
+Compress-Archive -Path E:\path-to-folder -DestinationPath D:\path-to-folder -Update
